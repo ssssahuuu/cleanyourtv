@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Screensaver: dark at the bottom left, clear at the top right, so the sky stays bright where there is no text. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="45"
+        android:startColor="#B3000000"
+        android:centerColor="#33000000"
+        android:centerX="0.45"
+        android:centerY="0.55"
+        android:endColor="#00000000" />
+</shape>

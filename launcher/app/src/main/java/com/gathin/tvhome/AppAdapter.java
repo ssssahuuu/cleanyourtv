@@ -41,7 +41,8 @@ import java.util.Set;
 public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
 
     interface TileListener {
-        void onTileFocused(int position, View card);
+        /** Returns true when the app's name is already shown above the dock, so the tile needs no label of its own. */
+        boolean onTileFocused(int position, View card);
 
         /** Called for a D-pad direction key on a tile. Return true when handled (focus stays put). */
         boolean onTileVerticalKey(int position, int keyCode);
@@ -341,13 +342,13 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
                         .setDuration(focused ? 260 : 180)
                         .setInterpolator(new OvershootInterpolator(focused ? 1.6f : 0f))
                         .start();
-                name.animate().alpha(focused ? 1f : 0f)
-                        .translationY(focused ? density * 4f : -density * 6f)
-                        .setDuration(220).start();
                 int pos = getBindingAdapterPosition();
-                if (focused && listener != null && pos != RecyclerView.NO_POSITION) {
-                    listener.onTileFocused(pos, view);
-                }
+                boolean nameAbove = focused && listener != null && pos != RecyclerView.NO_POSITION
+                        && listener.onTileFocused(pos, view);
+                boolean showName = focused && !nameAbove;
+                name.animate().alpha(showName ? 1f : 0f)
+                        .translationY(showName ? density * 4f : -density * 6f)
+                        .setDuration(220).start();
             });
         }
     }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Darkens a wallpaper where the text sits: the left side (clock, app name) and a little along the top,
+     fading out towards the right so the picture still shows. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:angle="0" android:startColor="#A6000000" android:centerX="0.38"
+                android:centerColor="#4D000000" android:endColor="#00000000" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#59000000" android:centerY="0.3"
+                android:centerColor="#00000000" android:endColor="#00000000" />
+        </shape>
+    </item>
+</layer-list>

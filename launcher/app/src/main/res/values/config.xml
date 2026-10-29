@@ -9,20 +9,24 @@
 
     <!-- Apps pinned to the dock row at the bottom, in this order. Missing apps are skipped. -->
     <string-array name="dock_apps">
+        <item>com.habuildtv</item>
+        <item>com.google.android.youtube.tv</item>
         <item>com.netflix.ninja</item>
         <item>com.amazon.amazonvideo.livingroom</item>
-        <item>com.google.android.youtube.tv</item>
         <item>in.startv.hotstar</item>
+        <item>io.github.jqssun.airplay</item>
     </string-array>
 
     <!-- Apps never shown as tiles (e.g. the Live TV app, which the Inputs menu already covers). -->
     <string-array name="hidden_apps">
-        <item>com.mediatek.wwtv.tvcenter</item>
+        <item>com.android.tv</item>
         <item>com.mitv.gallery</item>
+        <item>com.mitv.dream</item>
+        <item>com.xiaomi.mitv.smartshare</item>
     </string-array>
 
     <!-- The TV's Live TV / tuner app, offered at the end of the Inputs menu. Leave empty to omit. -->
-    <string name="live_tv_package" translatable="false">com.mediatek.wwtv.tvcenter</string>
+    <string name="live_tv_package" translatable="false">com.android.tv</string>
 
     <!-- Some TVs give their Live TV app no leanback entry point at all, so `live_tv_package` above
          resolves to nothing (TCL Android TV 9 on China-market sets is one). This action is then sent
@@ -35,6 +39,22 @@
     <string name="source_panel_service" translatable="false"></string>
     <string name="source_panel_action" translatable="false"></string>
 
+    <!-- The TV maker's own Picture and Sound screens, as package/class, listed in the Picture & Sound menu.
+         The pill is hidden when neither opens. These are Xiaomi's (MiTV-AXSO0, Android TV 9). Leave empty to omit. -->
+    <string name="picture_settings" translatable="false">com.android.tv.settings/com.xiaomi.mitv.settings.picture.PictureActivity</string>
+    <string name="sound_settings" translatable="false">com.android.tv.settings/com.xiaomi.mitv.settings.sound.SoundActivity</string>
+
+    <!-- The Bluetooth menu: Android TV's pairing screen, and the TV maker's sound-output picker (speakers,
+         soundbar, headphones) as package/class. The button is hidden when neither opens. Leave empty to omit. -->
+    <string name="bluetooth_pair" translatable="false">com.android.tv.settings/.accessories.AddAccessoryActivity</string>
+    <string name="bluetooth_output" translatable="false">com.android.tv.settings/com.xiaomi.mitv.settings.sound.SoundOutputDeviceActivity</string>
+
+    <!-- Weather on the screensaver, from Open-Meteo (free, no key). Latitude and longitude of your town, e.g.
+         51.51 and -0.13 for London; leave either empty to show no weather. weather_place is the name shown next to it. -->
+    <string name="weather_lat" translatable="false"></string>
+    <string name="weather_lon" translatable="false"></string>
+    <string name="weather_place" translatable="false"></string>
+
     <!-- Show the Solar Hijri (Shamsi) date used in Iran and Afghanistan, e.g. "27 Mehr 1405", above the
          Gregorian date. -->
     <bool name="shamsi_date">false</bool>
@@ -42,11 +62,11 @@
          VPN you use. Empty: the pill opens Wi-Fi settings. The VPN badge shows for any VPN either way. -->
     <string name="vpn_app" translatable="false"></string>
     <!-- Grid rows left visible under the dock on the home screen. 0 = dock sits at the very bottom. -->
-    <integer name="rows_below_dock">0</integer>
+    <integer name="rows_below_dock">1</integer>
 
     <!-- Tiles per row in the grid; the dock always has this many slots. Tiles are 180dp wide at 4 columns and
          shrink to fit from 5 up (about 144dp at 5, 117dp at 6 on a 1080p TV). -->
-    <integer name="columns">4</integer>
+    <integer name="columns">6</integer>
 
     <!-- "Default home" tile that opens Android's home-screen picker, for TVs whose settings have one
          (most Android TVs don't; the tile only appears when the page exists). Off by default. -->

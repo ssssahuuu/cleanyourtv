@@ -65,6 +65,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private String liveTvAction;
     private String sourcePanelService;
     private String sourcePanelAction;
+    private String pictureSettings;
+    private String soundSettings;
+    private String bluetoothPair;
+    private String bluetoothOutput;
 
     private AppAdapter adapter;
     private RecyclerView grid;
@@ -77,7 +81,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean heroShown;
     private TextView greeting;
     private View btnInputs;
-    private TextView btnWifi;
+    private View btnWifi;
+    /** What the Wi-Fi button's caption says: the network name, or the connection type. */
+    private CharSequence wifiLabel = "";
+    private LinearLayout topButtons;
+    private TextView topCaption;
+    /** The built-in picture behind the home screen when no theme sets one; null under a theme wallpaper. */
+    private ImageView wall;
+    private int wallRes;
     private TextView shamsiDate;
     private boolean shamsi;
     private String vpnApp;
@@ -136,6 +147,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         public void run() {
             updateGreeting();
             updateWifiLabel();
+            updateSky();
             handler.postDelayed(this, MINUTE_MS);
         }
     };
@@ -152,10 +164,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         liveTvAction = cfg.liveTvAction;
         sourcePanelService = cfg.sourcePanelService;
         sourcePanelAction = cfg.sourcePanelAction;
+        pictureSettings = cfg.pictureSettings;
+        soundSettings = cfg.soundSettings;
+        bluetoothPair = cfg.bluetoothPair;
+        bluetoothOutput = cfg.bluetoothOutput;
 
         root = findViewById(R.id.root);
         root.setBackgroundColor(cfg.backgroundColor);
-        if (cfg.wallpaper != null) showWallpaper(cfg.wallpaper);
+        // A theme's own wallpaper wins; otherwise the built-in sky that follows the time of day.
+        if (cfg.wallpaper != null) {
+            showWallpaper(cfg.wallpaper);
+        } else {
+            wall = new ImageView(this);
+            wall.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            root.addView(wall, 0, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            updateSky();
+        }
         glass = findViewById(R.id.glass);
         ambient = findViewById(R.id.ambient);
         heroName = findViewById(R.id.heroName);
@@ -165,6 +189,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         ambient.setBackground(ambientGlow);
         ambient.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) ->
                 ambientGlow.setGradientRadius((r - l) * 0.62f));
+        // The app-coloured glow suits the plain background; over a picture (added at index 0) it only tints the scenery.
+        if (root.getChildAt(0) instanceof ImageView) {
+            ambient.setVisibility(View.GONE);
+            findViewById(R.id.scrim).setVisibility(View.VISIBLE);
+        }
         greeting = findViewById(R.id.greeting);
         btnWifi = findViewById(R.id.btnWifi);
         shamsiDate = findViewById(R.id.shamsiDate);
@@ -195,9 +224,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // Item height follows the tile size, which follows the column count (AppAdapter.tileWidthPx).
             int inner = (r - l) - grid.getPaddingLeft() - grid.getPaddingRight();
             int itemH = AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(AppAdapter.tileWidthPx(inner, COLUMNS, density)), density);
-            int dockRow = itemH + (int) ((6 + 12) * density);   // item height plus DockDecoration offsets
+            int dockRow = itemH + (int) ((DockDecoration.TOP_DP + DockDecoration.BOTTOM_DP) * density);
             int gridRows = itemH * rowsBelowDock;
-            int want = Math.max(0, h - dockRow - gridRows - (int) (30 * density));
+            int want = Math.max(0, h - dockRow - gridRows - (int) (12 * density));
             if (grid.getPaddingTop() != want) {
                 grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
             }
@@ -232,8 +261,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
 
         btnInputs = findViewById(R.id.btnInputs);
+        View btnSky = findViewById(R.id.btnSky);
+        View btnPicture = findViewById(R.id.btnPicture);
         View btnSettings = findViewById(R.id.btnSettings);
+        topButtons = findViewById(R.id.topButtons);
+        topCaption = findViewById(R.id.topCaption);
         btnInputs.setOnClickListener(v -> showInputs());
+        btnSky.setOnClickListener(v -> showSkyMenu());
+        if (wall == null) btnSky.setVisibility(View.GONE);
+        btnPicture.setOnClickListener(v -> showScreensMenu(v, new int[]{R.drawable.ic_picture, R.drawable.ic_sound},
+                new int[]{R.string.picture, R.string.sound}, new String[]{pictureSettings, soundSettings}));
+        View btnBluetooth = findViewById(R.id.btnBluetooth);
+        btnBluetooth.setOnClickListener(v -> showScreensMenu(v, new int[]{R.drawable.ic_bluetooth, R.drawable.ic_sound},
+                new int[]{R.string.bluetooth_pair_device, R.string.sound_output}, new String[]{bluetoothPair, bluetoothOutput}));
+        if (settingsIntent(bluetoothPair) == null && settingsIntent(bluetoothOutput) == null) btnBluetooth.setVisibility(View.GONE);
+        if (settingsIntent(pictureSettings) == null && settingsIntent(soundSettings) == null) btnPicture.setVisibility(View.GONE);
         btnWifi.setOnClickListener(v -> openNetworkPill());
         btnWifi.setOnLongClickListener(v -> {
             open(new Intent(Settings.ACTION_WIFI_SETTINGS));
@@ -246,21 +288,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View.OnKeyListener pillKeys = (v, keyCode, event) -> {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                // The left end is Inputs, or Wi-Fi on a box without inputs.
-                return v.getId() == R.id.btnInputs
-                        || (v.getId() == R.id.btnWifi && btnInputs.getVisibility() != View.VISIBLE);
-            }
-            return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == R.id.btnSettings;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return v == edgeButton(true);
+            return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v == edgeButton(false);
         };
-        btnInputs.setOnKeyListener(pillKeys);
-        btnWifi.setOnKeyListener(pillKeys);
-        btnSettings.setOnKeyListener(pillKeys);
+        for (int i = 0; i < topButtons.getChildCount(); i++) topButtons.getChildAt(i).setOnKeyListener(pillKeys);
 
-        // Hide the glass when focus leaves the tiles.
+        // Hide the glass when focus leaves the tiles; name the top-bar button that has focus.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
             boolean onTile = newF != null && newF.getId() == R.id.card;
             if (!onTile) hideGlass();
+            if (newF != null && newF.getParent() == topButtons) showCaption(newF);
+            else hideCaption();
         });
 
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
@@ -285,10 +323,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
             opts.inJustDecodeBounds = true;
             android.graphics.BitmapFactory.decodeFile(file.getPath(), opts);
-            int sample = 1;
-            while (opts.outWidth / (sample * 2) >= dm.widthPixels && opts.outHeight / (sample * 2) >= dm.heightPixels) sample *= 2;
             opts.inJustDecodeBounds = false;
-            opts.inSampleSize = sample;
+            opts.inSampleSize = sampleSize(opts, dm);
             opts.inPreferredConfig = android.graphics.Bitmap.Config.RGB_565;   // no alpha needed, half the memory
             android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeFile(file.getPath(), opts);
             if (bmp == null) return;
@@ -317,6 +353,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         updateGreeting();
         updateWifiLabel();
         updateInputsButton();
+        updateSky();
         handler.postDelayed(minuteTick, MINUTE_MS);
 
         // Return to the app we left from, or the same slot if that app is gone. Always refocus: after
@@ -353,7 +390,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // ---- glass highlight -------------------------------------------------------------------------
 
     @Override
-    public void onTileFocused(int position, View card) {
+    public boolean onTileFocused(int position, View card) {
         lastFocused = position;
         lastFocusedKey = adapter.keyAt(position);
         // Tile rect in root coordinates, using layout positions (ignores the scale animation).
@@ -388,16 +425,28 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View item = (View) card.getParent();
         if (position < COLUMNS) {
             // Dock: park it at the bottom of the screen and show the top shelf for this app.
-            int decoratedTop = item.getTop() - (int) (6 * density);
+            int decoratedTop = item.getTop() - (int) (DockDecoration.TOP_DP * density);
             int dy = decoratedTop - grid.getPaddingTop();
             if (Math.abs(dy) > 1) grid.smoothScrollBy(0, dy);
             showHero(position, r.top - dy);
-        } else {
-            hideHero();
-            // Scroll just enough so the whole glass (not only the tile) is visible.
-            Rect want = new Rect(0, -(int) pad * 2, item.getWidth(), item.getHeight() + (int) pad);
-            grid.requestChildRectangleOnScreen(item, want, false);
+            return true;
         }
+        // A row already on screen below the dock: name it in the same big title above the dock. Once the
+        // grid has to scroll, the title would sit over tiles, so the tile's own label is used instead.
+        RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(0);
+        boolean onScreen = grid.computeVerticalScrollOffset() == 0 && item.getBottom() + pad <= grid.getHeight();
+        if (onScreen && dock != null) {
+            View dockCard = dock.itemView.findViewById(R.id.card);
+            Rect d = new Rect(0, 0, dockCard.getWidth(), dockCard.getHeight());
+            root.offsetDescendantRectToMyCoords(dockCard, d);
+            showHero(position, d.top);
+            return true;
+        }
+        hideHero();
+        // Scroll just enough so the whole glass (not only the tile) is visible.
+        Rect want = new Rect(0, -(int) pad * 2, item.getWidth(), item.getHeight() + (int) pad);
+        grid.requestChildRectangleOnScreen(item, want, false);
+        return false;
     }
 
     // ---- top shelf -------------------------------------------------------------------------------
@@ -560,10 +609,174 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             SpannableString label = new SpannableString(text + " " + badge);
             label.setSpan(new VpnBadge(getDrawable(R.drawable.ic_lock), density),
                     text.length() + 1, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            btnWifi.setText(label);
+            wifiLabel = label;
         } else {
-            btnWifi.setText(text);
+            wifiLabel = text;
         }
+        btnWifi.setContentDescription(vpn ? text + " " + getString(R.string.vpn) : text);
+        if (btnWifi.isFocused()) showCaption(btnWifi);
+    }
+
+    // ---- top-bar captions ------------------------------------------------------------------------
+
+    /** The first or last visible button of the top bar, where Left or Right must stop. */
+    private View edgeButton(boolean first) {
+        int n = topButtons.getChildCount();
+        for (int i = 0; i < n; i++) {
+            View b = topButtons.getChildAt(first ? i : n - 1 - i);
+            if (b.getVisibility() == View.VISIBLE) return b;
+        }
+        return null;
+    }
+
+    /** Names the focused round button in a small caption centred under it, kept on screen. */
+    private void showCaption(View button) {
+        topCaption.setText(button == btnWifi ? wifiLabel : button.getContentDescription());
+        topCaption.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        Rect r = new Rect(0, 0, button.getWidth(), button.getHeight());
+        root.offsetDescendantRectToMyCoords(button, r);
+        float w = topCaption.getMeasuredWidth(), margin = 16 * density;
+        float x = Math.max(margin, Math.min(r.exactCenterX() - w / 2f, root.getWidth() - margin - w));
+        topCaption.setX(x);
+        topCaption.setY(r.bottom + 8 * density);
+        topCaption.animate().alpha(1f).setDuration(160).start();
+    }
+
+    private void hideCaption() {
+        topCaption.animate().alpha(0f).setDuration(120).start();
+    }
+
+    /** Opens a top-bar menu under its button; the caption steps aside while the menu covers it. */
+    private void dropDown(PopupWindow popup, View anchor) {
+        hideCaption();
+        popup.setOnDismissListener(() -> {
+            if (anchor.isFocused()) showCaption(anchor);
+        });
+        popup.showAsDropDown(anchor, 0, (int) (10 * density), Gravity.START);
+    }
+
+    // ---- sky wallpaper ---------------------------------------------------------------------------
+
+    private static final String PREFS = "home", SKY_MODE = "sky_mode";
+    private static final String SKY_AUTO = "auto", SKY_MORNING = "morning", SKY_DAY = "day",
+            SKY_EVENING = "evening", SKY_NIGHT = "night";
+
+    private String skyMode() {
+        return skyMode(this);
+    }
+
+    private static String skyMode(android.content.Context c) {
+        return c.getSharedPreferences(PREFS, MODE_PRIVATE).getString(SKY_MODE, SKY_AUTO);
+    }
+
+    private int skyPicture() {
+        return skyPicture(this);
+    }
+
+    /** Sunrise, Day, Sunset or Night fixes the picture; Auto follows the clock through all four. Also used by the screensaver. */
+    static int skyPicture(android.content.Context c) {
+        String mode = skyMode(c);
+        if (SKY_MORNING.equals(mode)) return R.drawable.sky_morning;
+        if (SKY_DAY.equals(mode)) return R.drawable.sky_day;
+        if (SKY_EVENING.equals(mode)) return R.drawable.sky_evening;
+        if (SKY_NIGHT.equals(mode)) return R.drawable.sky_night;
+        Calendar now = Calendar.getInstance();
+        int minute = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
+        if (minute >= 6 * 60 + 30 && minute < 9 * 60) return R.drawable.sky_morning;     // 6:30 to 9:00
+        if (minute >= 9 * 60 && minute < 17 * 60 + 30) return R.drawable.sky_day;        // 9:00 to 17:30
+        if (minute >= 17 * 60 + 30 && minute < 18 * 60 + 45) return R.drawable.sky_evening;   // 17:30 to 18:45
+        return R.drawable.sky_night;
+    }
+
+    /** Shows the picture for now, cross-fading from the one before. Called every minute and on resume. */
+    private void updateSky() {
+        if (wall == null) return;
+        int res = skyPicture();
+        if (res == wallRes) return;
+        android.graphics.Bitmap bmp;
+        try {
+            android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+            android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeResource(getResources(), res, opts);
+            opts.inSampleSize = sampleSize(opts, dm);
+            opts.inJustDecodeBounds = false;
+            opts.inPreferredConfig = android.graphics.Bitmap.Config.RGB_565;
+            bmp = android.graphics.BitmapFactory.decodeResource(getResources(), res, opts);
+        } catch (Exception | OutOfMemoryError e) {
+            return;   // the plain background colour stays
+        }
+        if (bmp == null) return;
+        android.graphics.drawable.Drawable next = new android.graphics.drawable.BitmapDrawable(getResources(), bmp);
+        android.graphics.drawable.Drawable prev = wall.getDrawable();
+        if (prev == null) {
+            wall.setImageDrawable(next);
+        } else {
+            android.graphics.drawable.TransitionDrawable fade =
+                    new android.graphics.drawable.TransitionDrawable(new android.graphics.drawable.Drawable[]{prev, next});
+            fade.setCrossFadeEnabled(true);
+            wall.setImageDrawable(fade);
+            fade.startTransition(900);
+            // Drop the old picture once the fade is over, so only one stays in memory.
+            handler.postDelayed(() -> { if (wall.getDrawable() == fade) wall.setImageDrawable(next); }, 1000);
+        }
+        wallRes = res;
+    }
+
+    /** Halves a picture's size while it still covers the screen. */
+    static int sampleSize(android.graphics.BitmapFactory.Options opts, android.util.DisplayMetrics dm) {
+        int sample = 1;
+        while (opts.outWidth / (sample * 2) >= dm.widthPixels && opts.outHeight / (sample * 2) >= dm.heightPixels) sample *= 2;
+        return sample;
+    }
+
+    /** Dropdown under the background button: Auto (by time of day) or one picture all day, each with its hours. */
+    private void showSkyMenu() {
+        View anchor = findViewById(R.id.btnSky);
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+
+        final PopupWindow popup = new PopupWindow(panel, (int) (220 * density), ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));   // needed for Back to dismiss
+        popup.setOutsideTouchable(true);
+        popup.setAnimationStyle(0);
+        popup.setElevation(0f);
+
+        String current = skyMode();
+        View focus = null;
+        String[] modes = {SKY_AUTO, SKY_MORNING, SKY_DAY, SKY_EVENING, SKY_NIGHT};
+        int[] icons = {R.drawable.ic_sky, R.drawable.ic_twilight, R.drawable.ic_sun, R.drawable.ic_twilight, R.drawable.ic_moon};
+        int[] titles = {R.string.sky_auto, R.string.sky_morning, R.string.sky_day, R.string.sky_evening, R.string.sky_night};
+        int[] hours = {R.string.sky_auto_hours, R.string.sky_morning_hours, R.string.sky_day_hours,
+                R.string.sky_evening_hours, R.string.sky_night_hours};
+        for (int i = 0; i < modes.length; i++) {
+            final String mode = modes[i];
+            View row = addInputRow(rows, popup, icons[i], getString(titles[i]), -1, () -> {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(SKY_MODE, mode).apply();
+                updateSky();
+            });
+            // Each row shows its hours; the chosen one also gets the green dot.
+            TextView status = row.findViewById(R.id.status);
+            status.setText(hours[i]);
+            status.setVisibility(View.VISIBLE);
+            if (mode.equals(current)) {
+                row.findViewById(R.id.dot).setVisibility(View.VISIBLE);
+                focus = row;
+            }
+            if (i == 0) addSeparator(rows);
+        }
+        panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        popup.setWidth(Math.max(popup.getWidth(), panel.getMeasuredWidth()));
+
+        // Same drop-in as the Inputs menu.
+        panel.setAlpha(0f);
+        panel.setPivotY(0f);
+        panel.setScaleY(0.92f);
+        panel.setTranslationY(-8 * density);
+        dropDown(popup, anchor);
+        panel.animate().alpha(1f).scaleY(1f).translationY(0f).setDuration(220)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+        (focus != null ? focus : rows.getChildAt(0)).requestFocus();
     }
 
     /** The network pill opens the VPN app when one is configured and installed, otherwise Wi-Fi settings. */
@@ -707,7 +920,49 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         panel.setPivotY(0f);
         panel.setScaleY(0.92f);
         panel.setTranslationY(-8 * density);
-        popup.showAsDropDown(anchor, 0, (int) (10 * density), Gravity.START);
+        dropDown(popup, anchor);
+        panel.animate().alpha(1f).scaleY(1f).translationY(0f).setDuration(220)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+        rows.getChildAt(0).requestFocus();
+    }
+
+    /** An explicit "package/class" screen from config.xml, or null when it is empty or not on this TV. */
+    private Intent settingsIntent(String component) {
+        ComponentName c = component.isEmpty() ? null : ComponentName.unflattenFromString(component);
+        if (c == null) return null;
+        Intent i = new Intent().setComponent(c);
+        return getPackageManager().resolveActivity(i, 0) != null ? i : null;
+    }
+
+    /** Dropdown of the TV's own settings screens under a top-bar button; screens missing on this TV are left out. */
+    private void showScreensMenu(View anchor, int[] icons, int[] titles, String[] components) {
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+
+        int width = Math.max(anchor.getWidth(), (int) (170 * density));
+        final PopupWindow popup = new PopupWindow(panel, width, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));   // needed for Back to dismiss
+        popup.setOutsideTouchable(true);
+        popup.setAnimationStyle(0);
+        popup.setElevation(0f);
+
+        for (int i = 0; i < components.length; i++) {
+            final Intent screen = settingsIntent(components[i]);
+            if (screen != null) addInputRow(rows, popup, icons[i], getString(titles[i]), -1, () -> open(screen));
+        }
+        if (rows.getChildCount() == 0) {
+            Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        popup.setWidth(Math.max(width, panel.getMeasuredWidth()));
+
+        // Same drop-in as the Inputs menu.
+        panel.setAlpha(0f);
+        panel.setPivotY(0f);
+        panel.setScaleY(0.92f);
+        panel.setTranslationY(-8 * density);
+        dropDown(popup, anchor);
         panel.animate().alpha(1f).scaleY(1f).translationY(0f).setDuration(220)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
         rows.getChildAt(0).requestFocus();
@@ -722,7 +977,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         rows.addView(line, lp);
     }
 
-    private void addInputRow(LinearLayout rows, PopupWindow popup, int iconRes, String title, int state, Runnable action) {
+    private View addInputRow(LinearLayout rows, PopupWindow popup, int iconRes, String title, int state, Runnable action) {
         View row = getLayoutInflater().inflate(R.layout.item_input, rows, false);
         ((ImageView) row.findViewById(R.id.icon)).setImageResource(iconRes);
         ((TextView) row.findViewById(R.id.title)).setText(title);
@@ -745,5 +1000,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             action.run();
         });
         rows.addView(row);
+        return row;
     }
 }

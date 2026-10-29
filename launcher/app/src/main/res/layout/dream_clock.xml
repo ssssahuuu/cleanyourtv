@@ -1,19 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Screensaver (ClockDream): clock and date that drift around a black screen over an ambient glow. -->
+<!-- Screensaver (ClockDream): the home screen's time-of-day picture, slowly zooming, with the clock,
+     date and weather in the lower left. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#FF000000">
 
-    <View
-        android:id="@+id/dreamAmbient"
+    <ImageView
+        android:id="@+id/dreamPicture"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop" />
+
+    <!-- Darkens the lower left so the white text reads on a bright sky. -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/dream_scrim" />
 
     <LinearLayout
         android:id="@+id/dreamContent"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="64dp"
+        android:layout_marginBottom="56dp"
         android:orientation="vertical">
 
         <LinearLayout
@@ -27,12 +38,15 @@
                 android:layout_height="wrap_content"
                 android:format12Hour="h:mm"
                 android:format24Hour="HH:mm"
-                android:textColor="#E6FFFFFF"
-                android:textSize="120sp"
+                android:textColor="#F2FFFFFF"
+                android:textSize="104sp"
                 android:fontFamily="@font/outfit"
-                android:fontVariationSettings="'wght' 200"
+                android:fontVariationSettings="'wght' 250"
                 android:letterSpacing="-0.04"
-                android:includeFontPadding="false" />
+                android:includeFontPadding="false"
+                android:shadowColor="#99000000"
+                android:shadowRadius="18"
+                android:shadowDy="2" />
 
             <TextClock
                 android:layout_width="wrap_content"
@@ -40,26 +54,45 @@
                 android:layout_marginStart="10dp"
                 android:format12Hour="a"
                 android:format24Hour=""
-                android:textColor="#99FFFFFF"
+                android:textColor="#CCFFFFFF"
                 android:textSize="22sp"
                 android:fontFamily="@font/outfit"
                 android:fontVariationSettings="'wght' 500"
                 android:letterSpacing="0.08"
-                android:textAllCaps="true" />
+                android:textAllCaps="true"
+                android:shadowColor="#99000000"
+                android:shadowRadius="10" />
         </LinearLayout>
 
         <TextClock
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="6dp"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="2dp"
             android:format12Hour="@string/date_format"
             android:format24Hour="@string/date_format"
-            android:textColor="#8CFFFFFF"
+            android:textColor="#E6FFFFFF"
             android:textSize="18sp"
             android:fontFamily="@font/outfit"
             android:fontVariationSettings="'wght' 400"
             android:letterSpacing="0.14"
-            android:textAllCaps="true" />
+            android:textAllCaps="true"
+            android:shadowColor="#99000000"
+            android:shadowRadius="10" />
+
+        <!-- Filled in once the weather arrives; stays hidden when offline. -->
+        <TextView
+            android:id="@+id/dreamWeather"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_marginTop="14dp"
+            android:visibility="gone"
+            android:textColor="#F2FFFFFF"
+            android:textSize="22sp"
+            android:fontFamily="@font/outfit"
+            android:fontVariationSettings="'wght' 400"
+            android:shadowColor="#99000000"
+            android:shadowRadius="10" />
     </LinearLayout>
 </FrameLayout>
